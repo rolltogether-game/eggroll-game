@@ -1,0 +1,1052 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#e9ecec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="description" content="60 秒手作蛋捲挑戰：往上推捲出厚薄均勻、金黃不焦的蛋捲，登上即時排行榜。">
+<title>一起捲，捲幸福</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;600&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: full-bleed canvas scene (hot plate is the hero, wire rack of finished rolls below); minimal floating HUD; toast per roll. Bright single look. */
+:root{
+  --bg:#e9ecec;
+  --ink:#1f2a2e;
+  --muted:#6b787d;
+  --glass:rgba(255,255,255,.78);
+  --line:rgba(31,42,46,.12);
+  --blue:#2c4c96;
+  --batter:#e3ae3c;
+  --good:#3c9a48; --warn:#d8891b; --bad:#d2463a;
+  --f-display:"LXGW WenKai TC","Noto Serif TC",serif;
+  --f-body:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,monospace;
+  color-scheme:light;
+}
+html,body{height:100%}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);overflow:hidden;position:relative;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+svg.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+button{font:inherit;color:inherit}
+#stage{position:absolute;inset:0;touch-action:none}
+#cv{position:absolute;left:0;top:0;width:100%;height:100%;display:block;touch-action:none}
+
+.hud{position:absolute;left:0;right:0;top:0;z-index:2;display:flex;align-items:center;gap:12px;pointer-events:none;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px}
+.hud > *{pointer-events:auto}
+.timer{font:600 24px var(--f-num);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.timer.low{color:var(--bad)}
+.total{display:flex;align-items:center;gap:5px;font:500 16px var(--f-num);font-variant-numeric:tabular-nums;color:var(--muted)}
+.total b{color:var(--ink);font-weight:500}
+.sp{flex:1}
+.ibtn{display:grid;place-items:center;width:38px;height:38px;border-radius:999px;background:var(--glass);border:1px solid var(--line);cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.ibtn:focus-visible,.card:focus-visible,.big:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.ibtn.flash{animation:flash .9s ease 2}
+@keyframes flash{50%{background:var(--blue);color:#fff}}
+
+.toast{position:absolute;left:50%;z-index:2;transform:translate(-50%,0);display:flex;flex-direction:column;align-items:center;gap:6px;
+  background:var(--glass);border:1px solid var(--line);border-radius:16px;padding:10px 16px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  box-shadow:0 8px 24px rgba(31,42,46,.12);width:max-content;max-width:calc(100% - 48px);box-sizing:border-box;pointer-events:none;transition:opacity .35s ease, transform .35s ease}
+.toast.off{opacity:0;transform:translate(-50%,-8px)}
+.toast .top{display:flex;align-items:center;gap:10px}
+.stars{display:flex;gap:2px}
+.stars svg{width:17px;height:17px;fill:#d9dfe2;stroke:none}
+.stars svg.on{fill:var(--batter)}
+.toast .sc{font:600 22px var(--f-num);font-variant-numeric:tabular-nums}
+.toast .mini{display:flex;gap:12px;color:var(--muted);font:500 12px var(--f-num)}
+.toast .mini span{display:flex;align-items:center;gap:4px}
+.toast .mini svg.i{width:14px;height:14px}
+.toast .hint{font-size:12.5px;color:var(--muted);text-align:center;line-height:1.45;max-width:26em}
+
+.overlay{position:absolute;inset:0;z-index:4;display:grid;place-items:center;background:rgba(233,236,236,.7);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px;box-sizing:border-box}
+.sheet{display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center;max-width:340px}
+.sheet h1{font:700 36px/1.2 var(--f-display);margin:0;letter-spacing:.05em;text-wrap:balance}
+.sheet .lede{font-size:14px;color:var(--muted);line-height:1.75;margin:0;max-width:24em}
+.sheet .big-total{font:600 64px/1 var(--f-num);font-variant-numeric:tabular-nums}
+.row{display:flex;gap:18px;color:var(--muted);justify-content:center;flex-wrap:wrap}
+.stat{display:flex;align-items:center;gap:5px}
+.stat b{font:500 17px var(--f-num);color:var(--ink)}
+.newbest{font:600 12px var(--f-num);letter-spacing:.12em;color:#fff;background:var(--good);border-radius:999px;padding:3px 10px}
+.overlay{overflow-y:auto}
+.sheet{margin:auto 0}
+.unlock{width:100%;background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px 14px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;animation:pop .5s ease-out}
+@keyframes pop{from{transform:scale(.9);opacity:0}to{transform:none;opacity:1}}
+.unlock-h{font:700 18px var(--f-display);color:#b5741a}
+.unlock-list{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.unlock-item{display:flex;flex-direction:column;align-items:center;gap:2px;width:120px;font:700 15px var(--f-display)}
+.unlock-item canvas{width:100%;height:auto;display:block}
+.advice{width:100%;text-align:left;background:rgba(255,255,255,.6);border:1px solid var(--line);border-radius:16px;padding:12px 14px;box-sizing:border-box}
+.advice-h{font-size:12px;letter-spacing:.12em;color:var(--muted);margin-bottom:4px}
+.advice p{margin:4px 0 0;font-size:14px;line-height:1.65}
+.site{font-size:13.5px;color:var(--blue);text-decoration:none;border-bottom:1px solid rgba(44,76,150,.3);padding-bottom:1px}
+.site:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+@media (prefers-reduced-motion:reduce){.unlock{animation:none}}
+.btns{display:flex;gap:14px;justify-content:center}
+.big{width:64px;height:64px;border-radius:999px;display:grid;place-items:center;cursor:pointer;border:1px solid var(--line);background:#fff;box-shadow:0 4px 14px rgba(31,42,46,.1)}
+.big.primary{background:var(--ink);border-color:var(--ink);color:#fff;box-shadow:0 8px 20px rgba(31,42,46,.28)}
+.big svg.i{width:26px;height:26px}
+.big.primary svg.i{fill:currentColor}
+
+#book{position:absolute;inset:0;z-index:6;background:var(--bg);display:flex;flex-direction:column;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px;box-sizing:border-box;gap:12px}
+.bookhead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.bookhead .cnt{display:flex;align-items:center;gap:6px;font:500 15px var(--f-num);color:var(--muted)}
+.bookbody{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 12px;display:flex;flex-direction:column;gap:8px;align-items:flex-start;text-align:left;cursor:pointer}
+.card.locked{cursor:default;color:var(--muted);background:rgba(255,255,255,.5)}
+.card .nm{font:700 18px var(--f-display)}
+.card .en{font-size:11px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.card .lockhint{font-size:12px;line-height:1.45}
+.card canvas,.detail canvas.hero{width:100%;height:auto;display:block}
+.detail{display:flex;flex-direction:column;gap:14px;max-width:620px}
+.detail h2{font:700 28px var(--f-display);margin:0;text-wrap:balance}
+.detail .en{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:-8px}
+.detail .tag{font-size:15px;line-height:1.7;margin:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:#fff;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12.5px}
+.detail ul{margin:0;padding-left:1.2em;line-height:1.8;font-size:14px}
+.sec{font-size:12px;letter-spacing:.12em;color:var(--muted);margin:4px 0 -6px}
+.tblwrap{overflow-x:auto}
+table.nut{border-collapse:collapse;width:100%;min-width:300px;font-size:13.5px;background:#fff;color:#1c1c1a;border:2px solid #1c1c1a}
+table.nut caption{caption-side:top;text-align:left;font:700 15px var(--f-body);color:#1c1c1a;background:#fff;border:2px solid #1c1c1a;border-bottom:none;padding:6px 8px}
+table.nut th,table.nut td{padding:5px 8px;border-top:1px solid #1c1c1a;text-align:left;font-weight:400}
+table.nut td{text-align:right;font-family:var(--f-num);font-variant-numeric:tabular-nums}
+table.nut tr.hd th{font-weight:600;border-top:2px solid #1c1c1a}
+table.nut tr.hd th:not(:first-child){text-align:right}
+table.nut .sub th{padding-left:22px}
+.foot{font-size:12px;color:var(--muted);line-height:1.6}
+.foot a{color:var(--blue)}
+.mine{display:flex;gap:16px;font-size:13px;color:var(--muted)}
+.mine b{font-family:var(--f-num);color:var(--ink);font-weight:500;margin-left:4px}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}.ibtn.flash{animation:none}}
+body{margin:0}
+.hud{padding-top:max(12px,env(safe-area-inset-top,0px))}
+
+/* live leaderboard on the end screen */
+.lb{width:100%;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;text-align:left}
+.lb-h{display:flex;align-items:center;gap:6px;font:700 17px var(--f-display)}
+.lb-h .live{margin-left:auto;display:flex;align-items:center;gap:5px;font:500 11px var(--f-num);color:var(--muted);letter-spacing:.06em}
+.lb-h .live i{width:7px;height:7px;border-radius:50%;background:#bbb}
+.lb-h .live.on i{background:var(--good);box-shadow:0 0 0 3px rgba(60,154,72,.18)}
+.lb ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.lb li{display:grid;grid-template-columns:2em minmax(0,1fr) auto;align-items:center;gap:8px;padding:7px 4px;border-top:1px solid var(--line);font-size:14.5px}
+.lb li:first-child{border-top:none}
+.lb li .rk{font:600 14px var(--f-num);color:var(--muted);text-align:center}
+.lb li:nth-child(1) .rk{color:#c9971b}.lb li:nth-child(2) .rk{color:#8e9aa0}.lb li:nth-child(3) .rk{color:#b0773c}
+.lb li .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb li .pt{font:600 15px var(--f-num);font-variant-numeric:tabular-nums}
+.lb li.me{background:rgba(227,174,60,.16);border-radius:8px}
+.lb .empty{font-size:13px;color:var(--muted);padding:6px 4px}
+.lb form{display:flex;flex-direction:column;gap:8px;border-top:1px dashed var(--line);padding-top:10px}
+.lb label.f{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted)}
+.lb input[type=text],.lb input[type=email]{font:16px var(--f-body);color:var(--ink);padding:10px 12px;border:1px solid #c9d2d6;border-radius:10px;background:#fbfcfc;-webkit-user-select:text;user-select:text}
+.lb input:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+.lb .ck{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.5}
+.lb .ck input{margin-top:3px;width:16px;height:16px;flex:none}
+.lb details{font-size:12px;color:var(--muted);line-height:1.6}
+.lb details summary{cursor:pointer}
+.lb details p{margin:6px 0 0}
+.lb .send{padding:12px 16px;border:none;border-radius:999px;background:var(--batter);color:#3a2608;font:700 16px var(--f-body);cursor:pointer;box-shadow:0 6px 16px rgba(227,174,60,.35)}
+.lb .send:disabled{opacity:.55;cursor:default}
+.lb .msg{font-size:13px;line-height:1.5}
+.lb .msg.err{color:var(--bad)}
+.lb .msg.ok{color:var(--good);font-weight:600}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="ic-roll" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="8" rx="4"/><path d="M7 8.5c1.5 1 1.5 6 0 7M12 8.5c1.5 1 1.5 6 0 7"/></symbol>
+  <symbol id="ic-sum" viewBox="0 0 24 24"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.2 1.3-6.6L2.5 9.3l6.6-.8z"/></symbol>
+  <symbol id="ic-best" viewBox="0 0 24 24"><path d="M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 14v4M8 20h8"/></symbol>
+  <symbol id="ic-book" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7"/></symbol>
+  <symbol id="ic-wave" viewBox="0 0 24 24"><path d="M2 12c2.5-4 5-4 7.5 0s5 4 7.5 0 3.5-3 5-2"/></symbol>
+  <symbol id="ic-fire" viewBox="0 0 24 24"><path d="M12 3c1 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-4 2-7 2 1 3 3 3 5 1-2 1-6 1-9z"/></symbol>
+  <symbol id="ic-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="ic-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="ic-star" viewBox="0 0 24 24"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.2 1.3-6.6L2.5 9.3l6.6-.8z"/></symbol>
+  <symbol id="ic-pause" viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></symbol>
+  <symbol id="ic-play" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></symbol>
+  <symbol id="ic-again" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4"/></symbol>
+</svg>
+
+<main id="stage"><canvas id="cv"></canvas></main>
+
+<header class="hud">
+  <span class="timer" id="timer" aria-label="time left">1:00</span>
+  <span class="total" aria-label="total score"><svg class="i"><use href="#ic-sum"/></svg><b id="sTotal">0</b></span>
+  <span class="sp"></span>
+  <button class="ibtn" id="bookBtn" type="button" aria-label="collection"><svg class="i"><use href="#ic-book"/></svg></button>
+  <button class="ibtn" id="pauseBtn" type="button" aria-label="pause"><svg class="i"><use href="#ic-pause"/></svg></button>
+</header>
+
+<div class="toast off" id="toast" aria-live="polite">
+  <div class="top"><div class="stars" id="stars"></div><span class="sc" id="score">0</span></div>
+  <div class="mini"><span><svg class="i"><use href="#ic-wave"/></svg><b id="vEven">–</b></span><span><svg class="i"><use href="#ic-fire"/></svg><b id="vFire">–</b></span></div>
+  <div class="hint" id="note"></div>
+</div>
+
+<div class="overlay" id="overlay"><div class="sheet" id="sheet"></div></div>
+
+<div id="book" hidden>
+  <div class="bookhead">
+    <button class="ibtn" id="bookBack" type="button" aria-label="back"><svg class="i"><use href="#ic-x"/></svg></button>
+    <span class="cnt"><svg class="i"><use href="#ic-book"/></svg><span id="bookCnt">0/5</span></span>
+  </div>
+  <div class="bookbody" id="bookBody"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+(() => {
+// ---------- product data (source: happiness.com.tw product pages, summarised) ----------
+const FLAVORS = [
+  {id:'original', name:'精品原味', en:'Classic Blessing', url:'https://www.happiness.com.tw/Classic-Blessing.html',
+   price:'NT$380／盒', pcs:'每盒 12 入', veg:true,
+   tag:'奶香金黃、口感清爽，最單純也最耐吃的經典款。',
+   points:['純安佳奶油製作，不加水、奶粉或其他油品','不使用沙拉油、葵花籽油、起酥油','純手工製作，每支長度略有不同'],
+   tint:[1,1,1], speck:null},
+  {id:'tea', name:'阿里山紅茶', en:'Alishan Tea Aroma', url:'https://www.happiness.com.tw/Alishan-Tea.html',
+   price:'NT$420／盒', pcs:'每盒 12 入', veg:true,
+   tag:'把高山紅茶的茶香捲進蛋捲裡，入口先是奶香，尾韻帶清新茶味。',
+   points:['紅茶選用阿里山隙頂高級紅茶','純安佳奶油製作，不加水、奶粉或其他油品','不使用沙拉油、葵花籽油、起酥油','純手工製作，每支長度略有不同'],
+   tint:[.96,.8,.66], speck:[78,42,26]},
+  {id:'cocoa', name:'香濃可可', en:'Sweet Cocoa', url:'https://www.happiness.com.tw/Sweet-Cocoa.html',
+   price:'NT$420／盒', pcs:'每盒 12 入', veg:true,
+   tag:'甜味柔和、可可香氣溫潤，有種小時候捧著熱可可的安心感。',
+   points:['使用法芙娜（Valrhona）可可粉','純安佳奶油製作，不加水、奶粉或其他油品','不使用沙拉油、葵花籽油、起酥油','純手工製作，每支長度略有不同'],
+   tint:[.62,.44,.32], speck:[52,30,20]},
+  {id:'scallion', name:'沁選香蔥', en:'Green Onion Aroma', url:'https://www.happiness.com.tw/Green-Onion.html',
+   price:'NT$420／盒', pcs:'每盒 12 入', veg:false,
+   tag:'走鹹香路線，蔥香濃郁，給喜歡蔥味的人。',
+   points:['純安佳奶油製作，不加水、奶粉或其他油品','不使用沙拉油、葵花籽油、起酥油','純手工製作，每支長度略有不同'],
+   tint:[1,1,.94], speck:[72,140,62]},
+  {id:'collagen', name:'膠原蛋白', en:'Collagen', url:null,
+   price:'—', pcs:'—', veg:false, missing:true,
+   tag:'官網目前沒有這個品項，產品介紹待補。',
+   points:[],
+   tint:[1.02,.95,.93], speck:[255,236,230]},
+];
+// Nutrition facts: the official pages do not publish them yet. Fill per flavor as {serving:'', servings:'', rows:{kcal:['每份','每100g'], ...}}.
+const NUTRITION = {original:null, tea:null, cocoa:null, scallion:null, collagen:null};
+const NUT_ROWS = [['kcal','熱量','大卡'],['protein','蛋白質','公克'],['fat','脂肪','公克'],['sat','飽和脂肪','公克',1],['trans','反式脂肪','公克',1],['carb','碳水化合物','公克'],['sugar','糖','公克',1],['sodium','鈉','毫克']];
+const FL = Object.fromEntries(FLAVORS.map(f=>[f.id,f]));
+// ---------- online leaderboard (Supabase; see supabase/schema.sql and config.js) ----------
+const CFG = window.EGGROLL_CONFIG || {};
+const sb = (window.supabase && CFG.supabaseUrl && CFG.supabaseAnonKey) ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey) : null;
+const BOARD_SIZE = 10;
+let boardRows = [], boardState = 'loading', boardMine = null, boardListeners = new Set();
+function playerId(){
+  try {
+    let id = localStorage.getItem('eggroll-player');
+    if (!id){ id = crypto.randomUUID(); localStorage.setItem('eggroll-player', id); }
+    return id;
+  } catch(e){ return crypto.randomUUID(); }
+}
+async function loadBoard(){
+  if (!sb){ boardState = 'off'; return notifyBoard(); }
+  const {data, error} = await sb.from('entries').select('id,nickname,score').order('score', {ascending:false}).order('created_at', {ascending:true}).limit(BOARD_SIZE);
+  if (error){ boardState = 'error'; } else { boardRows = data; boardState = 'ok'; }
+  notifyBoard();
+}
+function notifyBoard(){ boardListeners.forEach(fn => fn()); }
+let boardLive = false;
+function subscribeBoard(){
+  if (!sb) return;
+  sb.channel('entries-live')
+    .on('postgres_changes', {event:'INSERT', schema:'public', table:'entries'}, () => loadBoard())
+    .subscribe(status => { boardLive = status === 'SUBSCRIBED'; notifyBoard(); });
+}
+function logPlay(total, rolls){
+  if (!sb) return;
+  sb.rpc('log_play', {p_player: playerId(), p_score: Math.min(3000, total), p_rolls: Math.min(60, rolls)}).then(() => {}, () => {});
+}
+
+const N = 40;
+const STREAM = 0.45, SPREAD = 0.9, SET = 1.2;
+const GOLD = 4.5, BURN = 7, CHAR = 11;
+const GUIDED_ROLLS = 3, FLAVOR_AFTER = 10, COLLECT_SCORE = 60;
+const ROUND = 60, STAGE_EVERY = 5;
+// burner stages: every 5 rolls the plate gets hotter and batter cooks faster
+const STAGES = [{temp:180, heat:1}, {temp:200, heat:1.3}, {temp:220, heat:1.6}, {temp:240, heat:1.9}, {temp:260, heat:2.2}];
+const $ = id => document.getElementById(id);
+const stage = $('stage'), cv = $('cv');
+let ctx = cv.getContext('2d');   // swapped briefly when painting collection thumbnails
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const FONT_D = '"LXGW WenKai TC","Noto Serif TC",serif', FONT_N = '"IBM Plex Mono",monospace';
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+
+// ---------- procedural textures ----------
+function makeTex(w, h, paint){ const c = document.createElement('canvas'); c.width = w; c.height = h; paint(c.getContext('2d'), w, h); return c; }
+const poreTex = makeTex(160, 160, (x,w,h) => {
+  for (let i=0;i<1400;i++){
+    const r = Math.random()*1.3 + .3, a = Math.random()*.22;
+    x.fillStyle = Math.random() < .7 ? `rgba(110,62,18,${a})` : `rgba(255,248,225,${a*1.4})`;
+    x.beginPath(); x.arc(Math.random()*w, Math.random()*h, r, 0, Math.PI*2); x.fill();
+  }
+  for (let i=0;i<40;i++){ x.strokeStyle = `rgba(120,70,25,${Math.random()*.12})`; x.lineWidth = .7;
+    const sx = Math.random()*w, sy = Math.random()*h; x.beginPath(); x.moveTo(sx,sy); x.lineTo(sx+(Math.random()-.5)*14, sy+(Math.random()-.5)*4); x.stroke(); }
+});
+const brushTex = makeTex(256, 64, (x,w,h) => {
+  for (let y=0;y<h;y++){ x.fillStyle = `rgba(${Math.random()<.5?255:90},${Math.random()<.5?255:100},${Math.random()<.5?255:110},${Math.random()*.07})`; x.fillRect(0,y,w,1); }
+  for (let i=0;i<120;i++){ x.fillStyle = `rgba(255,255,255,${Math.random()*.12})`; x.fillRect(Math.random()*w, Math.random()*h, 20+Math.random()*80, 1); }
+});
+let porePat = null, brushPat = null;
+
+let W = 0, H = 0, G = {};
+function resize(){
+  const r = stage.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
+  if (!r.width || !r.height) return;
+  W = r.width; H = r.height;
+  cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  porePat = ctx.createPattern(poreTex, 'repeat'); brushPat = ctx.createPattern(brushTex, 'repeat');
+  const hud = document.querySelector('.hud');
+  const top = hud ? hud.getBoundingClientRect().bottom + 6 : 62;
+  const rackH = clamp(H*0.15, 78, 128);
+  const side = Math.max(12, W*0.04);
+  const fw = Math.min(W - side*2, 560);
+  const frame = {x: (W-fw)/2, y: top + 22, w: fw, h: H - top - 22 - rackH - 18};
+  const plate = {x: frame.x + 12, y: frame.y + 30, w: frame.w - 24, h: frame.h - 42};
+  const sheet = {x: plate.x + 16, y: plate.y + 16, w: plate.w - 32, h: plate.h - 40};
+  const rack = {x: frame.x + 10, y: H - rackH - 6, w: frame.w - 20, h: rackH};
+  G = {top, frame, plate, sheet, rack};
+  positionToast();
+}
+function positionToast(){ if (G.plate) $('toast').style.top = (G.plate.y + 18) + 'px'; }
+addEventListener('resize', resize);
+if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+
+const STOPS = [[0,[250,234,172]],[1.2,[246,214,122]],[3,[236,186,86]],[GOLD,[216,152,60]],[6,[178,106,38]],[BURN,[122,66,24]],[9,[60,37,20]],[CHAR,[30,22,16]]];
+function cookRGB(t, fl){
+  let c = STOPS[STOPS.length-1][1];
+  if (t <= 0) c = STOPS[0][1];
+  else for (let i=1;i<STOPS.length;i++){
+    if (t <= STOPS[i][0]){ const [t0,a] = STOPS[i-1], [t1,b] = STOPS[i], k = (t-t0)/(t1-t0); c = a.map((v,j)=>v+(b[j]-v)*k); break; }
+  }
+  const tint = fl ? fl.tint : [1,1,1];
+  return c.map((v,j)=>Math.round(Math.min(255, v*tint[j])));
+}
+const rgb = (c,a=1) => `rgba(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])},${a})`;
+const shade = (c,k) => c.map(v=>clamp(v*k,0,255));
+
+// ---------- state ----------
+let life = {count:0, bestTotal:0, col:{}};
+let run = null;
+let mode = 'title';
+let clock = 0;
+let S = null, particles = [], flyers = [];
+const save = () => { try { localStorage.setItem('eggroll-v4', JSON.stringify(life)); } catch(e){} };
+const stageOf = rolls => STAGES[Math.min(STAGES.length-1, Math.floor(rolls / STAGE_EVERY))];
+
+function pickFlavor(){
+  if (life.count < FLAVOR_AFTER) return FL.original;
+  const missing = FLAVORS.filter(f => !life.col[f.id]);
+  if (missing.length && Math.random() < 0.55) return missing[Math.floor(Math.random()*missing.length)];
+  return FLAVORS[Math.floor(Math.random()*FLAVORS.length)];
+}
+function newBatter(t){
+  const prevRod = S ? S.rodYEnd : null;
+  const st = stageOf(run.rolls), prev = run.rolls ? stageOf(run.rolls-1) : st;
+  S = {
+    state:'dispense', t0:t, p:0, v:0, pPrev:0, samples:[], rollStart:null, rollEnd:null,
+    fl: pickFlavor(), guided: life.count < GUIDED_ROLLS,
+    heat: st.heat, temp: st.temp, stageUp: st !== prev,
+    strips: Array.from({length:N}, () => ({land:null, rolled:null, jl:(Math.random()-.5)*5, jr:(Math.random()-.5)*5})),
+    bits: Array.from({length:60}, () => ({x:Math.random(), y:Math.random(), r:.7+Math.random()*1.4, a:Math.random()*Math.PI})),
+    off: {x:Math.random()*160, y:Math.random()*160},
+    touching:false, lastY:null, rodFrom: prevRod, rodYEnd:null, doneT:null,
+  };
+}
+const cookOf = (s, t) => s.land==null ? 0 : ((s.rolled ?? t) - s.land) * S.heat;
+function maxCook(t){ let m=0; for (const s of S.strips) m = Math.max(m, cookOf(s,t)); return m; }
+const rodY = () => G.sheet.y + G.sheet.h - S.p*G.sheet.h;
+const canRoll = () => mode==='play' && S && (S.state==='ready' || S.state==='rolling' || (S.state==='setting' && !S.guided));
+
+// ---------- input ----------
+stage.addEventListener('pointerdown', e => {
+  if (!canRoll()){ if (S && S.state==='setting') S.nudge = clock; return; }
+  try { stage.setPointerCapture(e.pointerId); } catch(_){}
+  S.touching = true; S.lastY = e.clientY;
+});
+stage.addEventListener('pointermove', e => {
+  if (!S || !S.touching || !canRoll()) return;
+  const dy = S.lastY - e.clientY; S.lastY = e.clientY;
+  if (dy <= 0) return;
+  if (S.state !== 'rolling'){ S.state = 'rolling'; S.rollStart = clock; }
+  S.p = Math.min(1, S.p + dy / G.sheet.h);
+});
+const release = () => { if (S) S.touching = false; };
+stage.addEventListener('pointerup', release);
+stage.addEventListener('pointercancel', release);
+
+// ---------- scoring ----------
+let toastTimer = null;
+function finish(t, charred){
+  const fire = maxCook(t);
+  let even = 0, tooFast = false, rawFrac = 0;
+  if (!charred){
+    const xs = S.samples.filter(s => s.p > .06 && s.p < .94);
+    let sw=0, sm=0; for (const s of xs){ sw+=s.dt; sm+=s.v*s.dt; }
+    const mean = sw ? sm/sw : 0;
+    let sv=0; for (const s of xs) sv += (s.v-mean)**2*s.dt;
+    const cvv = (sw && mean) ? Math.sqrt(sv/sw)/mean : 1;
+    even = clamp(100*(1-(cvv-0.12)/0.68), 0, 100);
+    if ((S.rollEnd - S.rollStart) < 0.25){ tooFast = true; even = Math.min(even, 45); }
+    rawFrac = S.strips.filter(s => cookOf(s,t) < SET*0.85).length / N;
+  }
+  const burnt = charred || fire > BURN;
+  let fireScore = burnt ? 0 : fire <= GOLD ? 100 : Math.round(100 - (fire-GOLD)/(BURN-GOLD)*70);
+  const raw = !burnt && rawFrac > 0.08;
+  if (raw) fireScore = Math.round(fireScore * (1 - Math.min(1, rawFrac*1.6)));
+  const score = burnt ? 0 : Math.round(even*0.6 + fireScore*0.4);
+
+  let note;
+  if (charred) note = '放太久，還沒捲就焦黑了。';
+  else if (burnt) note = S.heat > 1 ? '火力變大了，焦得更快，要更早推。' : '最早下鍋的那段待太久，焦苦了。';
+  else if (raw) note = '還沒定型就捲，黏成一團。等濕亮光澤退掉再推。';
+  else if (score>=90) note = '';
+  else if (tooFast) note = '推太快，捲得鬆散。';
+  else if (even < fireScore) note = '速度忽快忽慢，厚薄不一。';
+  else note = '火候稍過，可以早一點推。';
+
+  renderStars(score);
+  $('score').textContent = score;
+  $('vEven').textContent = charred ? '–' : Math.round(even);
+  $('vFire').textContent = fireScore;
+  $('note').textContent = note; $('note').hidden = !note;
+  const tst = $('toast'); tst.classList.remove('off'); clearTimeout(toastTimer); toastTimer = setTimeout(() => tst.classList.add('off'), 1700);
+
+  run.rolls++; run.total += score; run.sumEven += even; run.sumFire += fireScore;
+  if (burnt) run.nBurnt++; else { run.sumFireOk += fireScore; run.nOk++; }
+  if (raw) run.nRaw++;
+  if (tooFast) run.nFast++;
+  const col = averageColor(t);
+  run.rack.push({c:col, burnt, fl:S.fl.id});
+  flyers.push({c:col, t0:t, y:S.rodYEnd, R:6.5+10, fl:S.fl, idx:run.rack.length-1});
+  life.count++;
+  const id = S.fl.id, rec = life.col[id];
+  if (score >= COLLECT_SCORE){
+    if (!rec){ life.col[id] = {n:1, best:score}; run.unlocked.push(id); flashBook(); }
+    else { rec.n++; rec.best = Math.max(rec.best, score); }
+  }
+  renderHud(); save();
+  try { navigator.vibrate && navigator.vibrate(burnt ? [40,40,40] : 25); } catch(e){}
+}
+function renderStars(score){
+  const on = Math.round(score/20);
+  $('stars').innerHTML = Array.from({length:5}, (_,i)=>`<svg class="${i<on?'on':''}"><use href="#ic-star"/></svg>`).join('');
+}
+function averageColor(t){
+  const acc=[0,0,0]; for (const s of S.strips){ const c = cookRGB(cookOf(s,t), S.fl); acc[0]+=c[0];acc[1]+=c[1];acc[2]+=c[2]; }
+  return acc.map(v=>Math.round(v/N));
+}
+const fmt = s => { s = Math.max(0, Math.ceil(s)); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); };
+function renderHud(){
+  $('timer').textContent = fmt(run ? run.left : ROUND);
+  $('timer').classList.toggle('low', !!run && run.left <= 10 && mode==='play');
+  $('sTotal').textContent = run ? run.total : 0;
+  $('bookCnt').textContent = Object.keys(life.col).length + '/' + FLAVORS.length;
+}
+function flashBook(){ const b = $('bookBtn'); b.classList.remove('flash'); void b.offsetWidth; b.classList.add('flash'); }
+
+// ---------- round flow ----------
+function startRound(){
+  run = {left:ROUND, total:0, rolls:0, rack:[], sumEven:0, sumFire:0, sumFireOk:0, nOk:0, nBurnt:0, nRaw:0, nFast:0, unlocked:[]};
+  S = null; particles = []; flyers = []; clock = 0;
+  $('toast').classList.add('off');
+  newBatter(clock);
+  mode = 'play'; hideOverlay(); renderHud();
+}
+function pause(){ if (mode !== 'play') return; mode = 'paused'; if (S) S.touching = false; showPause(); }
+function resume(){ if (mode !== 'paused') return; mode = 'play'; hideOverlay(); }
+function endRound(){
+  mode = 'over'; if (S) S.touching = false;
+  const isBest = run.total > 0 && run.total > (life.bestTotal || 0);
+  if (isBest) life.bestTotal = run.total;
+  save(); renderHud(); showOver(isBest);
+  logPlay(run.total, run.rolls);
+}
+const icon = id => `<svg class="i"><use href="#ic-${id}"/></svg>`;
+function sheetHTML(html){ $('sheet').innerHTML = html; $('overlay').hidden = false; }
+function hideOverlay(){ $('overlay').hidden = true; }
+function bindSheet(){
+  $('sheet').querySelectorAll('[data-act]').forEach(b => b.onclick = () => ({start:startRound, resume, restart:startRound, book:openBook})[b.dataset.act]());
+  const first = $('sheet').querySelector('.primary'); if (first) first.focus({preventScroll:true});
+}
+function showTitle(){
+  sheetHTML(`<h1>一起捲，捲幸福</h1>
+    <p class="lede">60 秒內捲越多、越漂亮，總分越高。手指往上推，鋼管跟著捲；速度要穩，別讓麵糊燒焦。每 5 支火力升一級。</p>
+    <div class="row"><span class="stat">${icon('best')}<b>${life.bestTotal || '–'}</b></span><span class="stat">${icon('book')}<b>${Object.keys(life.col).length}/${FLAVORS.length}</b></span></div>
+    <div class="btns"><button class="big primary" type="button" data-act="start" aria-label="start">${icon('play')}</button></div>`);
+  bindSheet();
+}
+function showPause(){
+  sheetHTML(`<div class="row"><span class="stat"><b>${fmt(run.left)}</b></span><span class="stat">${icon('sum')}<b>${run.total}</b></span><span class="stat">${icon('roll')}<b>${run.rolls}</b></span></div>
+    <div class="btns">
+      <button class="big primary" type="button" data-act="resume" aria-label="resume">${icon('play')}</button>
+      <button class="big" type="button" data-act="restart" aria-label="restart">${icon('again')}</button>
+      <button class="big" type="button" data-act="book" aria-label="collection">${icon('book')}</button>
+    </div>`);
+  bindSheet();
+}
+// overall advice for the round, most important problem first
+function roundAdvice(){
+  const n = run.rolls;
+  if (!n) return ['這回合沒有捲完任何一支。麵糊定型後就用手指往上推，鋼管會跟著捲。'];
+  const even = run.sumEven / n, fireOk = run.nOk ? run.sumFireOk / run.nOk : 100, tips = [];
+  if (run.nBurnt) tips.push(`有 ${run.nBurnt} 支燒焦了。每 5 支火力會升一級，後半段要更早開始推、中途別停。`);
+  if (run.nRaw) tips.push(`有 ${run.nRaw} 支太早捲、麵糊還沒定型。等表面的濕亮光澤退掉再推。`);
+  if (run.nFast) tips.push(`有 ${run.nFast} 支推得太快，捲得鬆散。放慢一點，用同一個速度推完。`);
+  else if (even < 70) tips.push('推的速度忽快忽慢，厚薄不夠一致。試著從頭到尾維持同一個速度。');
+  if (!run.nBurnt && fireOk < 75) tips.push('火候偏過，蛋捲顏色偏深。定型後可以再早一點開始推。');
+  if (!tips.length) tips.push(n < 8 ? '速度和火候都很穩！下一輪試著加快節奏，捲出更多支。' : '速度穩、火候準、數量也夠，是很漂亮的一輪！');
+  return tips.slice(0, 2);
+}
+function showOver(isBest){
+  const n = run.rolls || 1;
+  const unlocked = run.unlocked.map(id => FL[id]);
+  sheetHTML(`<div class="big-total">${run.total}</div>
+    ${isBest ? '<span class="newbest">NEW BEST</span>' : ''}
+    ${unlocked.length ? `<div class="unlock"><div class="unlock-h">恭喜解鎖新口味！</div><div class="unlock-list" id="unlockList"></div></div>` : ''}
+    ${sb ? '<section class="lb" id="lb"></section>' : ''}
+    <div class="advice"><div class="advice-h">製作建議</div>${roundAdvice().map(t => `<p>${esc(t)}</p>`).join('')}</div>
+    <div class="row">
+      <span class="stat">${icon('roll')}<b>${run.rolls}</b></span>
+      <span class="stat">${icon('wave')}<b>${Math.round(run.sumEven/n)}</b></span>
+      <span class="stat">${icon('fire')}<b>${Math.round(run.sumFire/n)}</b></span>
+      <span class="stat">${icon('best')}<b>${life.bestTotal || '–'}</b></span>
+    </div>
+    <div class="btns">
+      <button class="big primary" type="button" data-act="restart" aria-label="play again">${icon('again')}</button>
+      <button class="big" type="button" data-act="book" aria-label="collection">${icon('book')}</button>
+    </div>
+    <a class="site" href="https://www.happiness.com.tw/product" target="_blank" rel="noopener">到捲幸福蛋捲官網，看看真正的蛋捲 ↗</a>`);
+  const list = $('unlockList');
+  if (list) for (const fl of unlocked){
+    const item = document.createElement('div'); item.className = 'unlock-item';
+    item.appendChild(rollThumb(fl, false, 160, 48));
+    item.insertAdjacentHTML('beforeend', `<span>${esc(fl.name)}</span>`);
+    list.appendChild(item);
+  }
+  if ($('lb')) mountBoard($('lb'), run.total, run.rolls);
+  bindSheet();
+}
+
+// end-screen leaderboard: live top 10 plus the sign-up form for this round
+let boardUnmount = null;
+function mountBoard(el, total, rolls){
+  if (boardUnmount) boardUnmount();
+  boardMine = null;
+  el.innerHTML = `<div class="lb-h">${icon('best')}<span>即時排行榜</span><span class="live" id="lbLive"><i></i>LIVE</span></div>
+    <ol id="lbList"></ol>
+    ${total > 0 ? `<form id="lbForm" novalidate>
+      <label class="f">暱稱（會公開）<input type="text" id="lbNick" maxlength="12" autocomplete="nickname" required></label>
+      <label class="f">電子郵件（不公開）<input type="email" id="lbEmail" maxlength="254" autocomplete="email" inputmode="email" required></label>
+      <label class="ck"><input type="checkbox" id="lbBoard" required><span>我同意以暱稱與分數公開於排行榜。</span></label>
+      <label class="ck"><input type="checkbox" id="lbMkt"><span>我願意收到捲幸福蛋捲的新品與優惠通知（可隨時取消）。</span></label>
+      <details><summary>個人資料說明</summary>
+        <p>蒐集目的：公布遊戲排行榜；若勾選同意，也會寄送新品與優惠通知。</p>
+        <p>蒐集項目：暱稱、電子郵件、遊戲分數。排行榜只公開暱稱與分數，電子郵件不會公開。</p>
+        <p>保存期間：至活動結束，或您要求刪除時為止。您可隨時要求查詢、更正、刪除資料或取消訂閱。</p>
+        <p>另外，遊戲會以隨機裝置代號匿名記錄遊玩次數與分數，不含任何個人資料。</p>
+      </details>
+      <button class="send" type="submit" id="lbSend">送出 ${total} 分，登上排行榜</button>
+      <div class="msg" id="lbMsg" role="status"></div>
+    </form>` : ''}`;
+  try { const n = localStorage.getItem('eggroll-nick'); if (n && $('lbNick')) $('lbNick').value = n; } catch(e){}
+
+  const render = () => {
+    const list = $('lbList'); if (!list) return;
+    $('lbLive').classList.toggle('on', boardLive);
+    list.textContent = '';
+    if (boardState === 'loading' || boardState === 'error' || !boardRows.length){
+      const d = document.createElement('div'); d.className = 'empty';
+      d.textContent = boardState === 'loading' ? '讀取排行榜中…' : boardState === 'error' ? '排行榜暫時讀不到，稍後再試。' : '還沒有人上榜，搶第一個！';
+      list.appendChild(d); return;
+    }
+    boardRows.forEach((r, i) => {
+      const li = document.createElement('li'); if (boardMine === r.id) li.className = 'me';
+      const rk = document.createElement('span'); rk.className = 'rk'; rk.textContent = i + 1;
+      const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = r.nickname;
+      const pt = document.createElement('span'); pt.className = 'pt'; pt.textContent = r.score;
+      li.append(rk, nm, pt); list.appendChild(li);
+    });
+  };
+  boardListeners.add(render);
+  boardUnmount = () => { boardListeners.delete(render); boardUnmount = null; };
+  render(); loadBoard();
+
+  const form = $('lbForm'); if (!form) return;
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const nick = $('lbNick').value.trim(), email = $('lbEmail').value.trim(), msg = $('lbMsg');
+    msg.className = 'msg err';
+    if (!nick) return msg.textContent = '請輸入暱稱。';
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return msg.textContent = '請輸入正確的電子郵件。';
+    if (!$('lbBoard').checked) return msg.textContent = '要上榜，請先勾選同意公開暱稱與分數。';
+    $('lbSend').disabled = true; msg.className = 'msg'; msg.textContent = '送出中…';
+    const {data, error} = await sb.rpc('submit_score', {
+      p_nickname: nick, p_email: email, p_score: Math.min(3000, total), p_rolls: Math.min(60, rolls),
+      p_board_consent: true, p_marketing: $('lbMkt').checked,
+    });
+    if (error){ $('lbSend').disabled = false; msg.className = 'msg err'; msg.textContent = '送出失敗，請檢查網路後再試一次。'; return; }
+    try { localStorage.setItem('eggroll-nick', nick); } catch(e){}
+    const row = Array.isArray(data) ? data[0] : data;
+    boardMine = row ? row.new_entry_id : null;
+    form.innerHTML = '';
+    const ok = document.createElement('div'); ok.className = 'msg ok';
+    ok.textContent = row ? `上榜成功！你目前是第 ${row.new_rank} 名。` : '上榜成功！';
+    form.appendChild(ok);
+    loadBoard();
+  });
+}
+$('pauseBtn').addEventListener('click', () => mode==='play' ? pause() : mode==='paused' ? resume() : null);
+document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+
+// ---------- update ----------
+function update(t, dt){
+  run.left -= dt;
+  if (run.left <= 0){ run.left = 0; endRound(); return; }
+  if (Math.ceil(run.left) !== Math.ceil(run.left + dt)) renderHud();
+
+  const sh = G.sheet;
+  if (S.state === 'dispense'){
+    const el = t - S.t0;
+    if (el > STREAM){
+      const spread = Math.min(1, (el-STREAM)/SPREAD);
+      S.strips.forEach((s,k) => { if (s.land==null && spread >= (k+.5)/N) s.land = t; });
+      if (spread >= 1){ S.state = 'setting'; S.setT = t; }
+    }
+  } else if (S.state === 'setting'){
+    if (t - S.setT >= SET / S.heat) S.state = 'ready';
+  } else if (S.state === 'ready'){
+    if (maxCook(t) > CHAR){ S.state = 'done'; S.doneT = t; S.rodYEnd = rodY(); finish(t, true); }
+  } else if (S.state === 'rolling'){
+    const inst = (S.p - S.pPrev)/Math.max(dt, 1e-3);
+    S.v += (inst - S.v) * (1 - Math.exp(-dt/0.09));
+    S.samples.push({p:S.p, v:S.v, dt});
+    const ry = rodY();
+    S.strips.forEach((s,k) => { if (s.rolled==null && sh.y + (k+.5)*sh.h/N > ry) s.rolled = t; });
+    if (S.p >= 1){
+      S.strips.forEach(s => { if (s.rolled==null) s.rolled = t; });
+      S.rollEnd = t; S.state = 'done'; S.doneT = t; S.rodYEnd = ry; finish(t, false);
+    }
+  } else if (S.state === 'done'){
+    if (t - S.doneT > 0.75) newBatter(t);
+  }
+  S.pPrev = S.p;
+
+  if (S.state !== 'done'){
+    const ry = rodY(), rate = reduce ? 0.25 : 1;
+    for (let k=0;k<N;k++){
+      const s = S.strips[k]; if (s.land==null || s.rolled!=null) continue;
+      const y = sh.y + (k+.5)*sh.h/N; if (y > ry) continue;
+      const c = cookOf(s, t);
+      if (c > 0.6 && Math.random() < 0.018*rate*S.heat)
+        particles.push({x: sh.x + Math.random()*sh.w, y, vx:(Math.random()-.5)*8, vy:-16-Math.random()*18, life:0, max:1.3+Math.random(), dark: c > 6.5, r0: 3+Math.random()*3});
+    }
+  }
+  for (const q of particles){ q.life += dt; q.x += q.vx*dt; q.y += q.vy*dt; q.vy -= 5*dt; }
+  particles = particles.filter(q => q.life < q.max).slice(-160);
+}
+
+// ---------- drawing ----------
+function rr(x,y,w,h,r){ ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x,y,w,h,r); else ctx.rect(x,y,w,h); }
+function steelFill(x0,y0,x1,y1,k=1){
+  const g = ctx.createLinearGradient(x0,y0,x1,y1), s = v => Math.round(v*k);
+  g.addColorStop(0, `rgb(${s(250)},${s(251)},${s(252)})`);
+  g.addColorStop(.22,`rgb(${s(206)},${s(212)},${s(216)})`);
+  g.addColorStop(.5, `rgb(${s(238)},${s(241)},${s(243)})`);
+  g.addColorStop(.78,`rgb(${s(196)},${s(203)},${s(207)})`);
+  g.addColorStop(1, `rgb(${s(170)},${s(178)},${s(183)})`);
+  return g;
+}
+function overlayBrush(){ ctx.save(); ctx.clip(); ctx.globalAlpha = .9; ctx.fillStyle = brushPat; ctx.fill(); ctx.restore(); }
+
+function drawBackdrop(){
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#f3f5f5'); g.addColorStop(1,'#dde2e3');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  const v = ctx.createRadialGradient(W/2, H*0.45, Math.min(W,H)*0.3, W/2, H*0.45, Math.max(W,H)*0.8);
+  v.addColorStop(0,'rgba(255,255,255,0)'); v.addColorStop(1,'rgba(120,130,135,.18)');
+  ctx.fillStyle = v; ctx.fillRect(0,0,W,H);
+}
+
+function drawMachine(t){
+  const {frame:f, plate:p} = G;
+  const st = S ? S : {temp: 180, heat: 1};
+  // supply pipe and nozzle from above
+  const cx = f.x + f.w/2;
+  ctx.fillStyle = steelFill(cx-7, 0, cx+7, 0); ctx.fillRect(cx-6, 0, 12, f.y + 10);
+  // stainless frame with a soft drop shadow
+  ctx.save(); ctx.shadowColor = 'rgba(40,50,55,.3)'; ctx.shadowBlur = 22; ctx.shadowOffsetY = 10;
+  rr(f.x, f.y, f.w, f.h, 16); ctx.fillStyle = steelFill(f.x, f.y, f.x+f.w, f.y+f.h*0.3); ctx.fill(); ctx.restore();
+  rr(f.x, f.y, f.w, f.h, 16); overlayBrush();
+  ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 1.2; rr(f.x+1, f.y+1, f.w-2, f.h-2, 15); ctx.stroke();
+  ctx.strokeStyle = 'rgba(90,100,106,.45)'; ctx.lineWidth = 1; rr(f.x+.5, f.y+.5, f.w-1, f.h-1, 16); ctx.stroke();
+  // top bar: temperature display + knob
+  const lw = 54, lh = 18, lx = f.x + 14, ly = f.y + 6;
+  rr(lx-2, ly-2, lw+4, lh+4, 5); ctx.fillStyle = 'rgba(80,90,96,.35)'; ctx.fill();
+  rr(lx, ly, lw, lh, 4); ctx.fillStyle = '#111517'; ctx.fill();
+  ctx.font = `600 13px ${FONT_N}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(255,59,47,.13)'; ctx.fillText('888°', lx+lw/2, ly+lh/2+1);
+  ctx.save(); ctx.shadowColor = 'rgba(255,59,47,.9)'; ctx.shadowBlur = 6;
+  const blink = S && S.stageUp && S.state==='dispense' ? Math.sin(t*14) > 0 : true;
+  ctx.fillStyle = blink ? '#ff3b2f' : '#6d1f1a'; ctx.fillText(st.temp + '°', lx+lw/2, ly+lh/2+1); ctx.restore();
+  // heat pips: one per burner stage
+  for (let i=0;i<STAGES.length;i++){
+    const on = STAGES[i].heat <= st.heat;
+    ctx.fillStyle = on ? (i>=3 ? '#ff4a2a' : '#ff8a2a') : 'rgba(80,90,96,.3)';
+    ctx.beginPath(); ctx.arc(lx + lw + 14 + i*10, ly + lh/2, 3, 0, Math.PI*2); ctx.fill();
+  }
+  // knob
+  const kx = f.x + f.w - 26, ky = f.y + 15;
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 4; ctx.shadowOffsetY = 2;
+  ctx.fillStyle = '#26292b'; ctx.beginPath(); ctx.arc(kx, ky, 10, 0, Math.PI*2); ctx.fill(); ctx.restore();
+  const ka = -2.2 + (st.heat-1)/1.2*2.6;
+  ctx.strokeStyle = '#ff8a2a'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(kx, ky); ctx.lineTo(kx + Math.cos(ka)*7, ky + Math.sin(ka)*7); ctx.stroke();
+  // nozzle
+  ctx.fillStyle = steelFill(cx-12, 0, cx+12, 0, .95);
+  ctx.beginPath(); ctx.moveTo(cx-11, f.y+4); ctx.lineTo(cx+11, f.y+4); ctx.lineTo(cx+4, f.y+20); ctx.lineTo(cx-4, f.y+20); ctx.closePath(); ctx.fill();
+  G.nozzle = {x:cx, y:f.y+20};
+
+  // recessed aluminium hot plate
+  rr(p.x-3, p.y-3, p.w+6, p.h+6, 10); ctx.fillStyle = 'rgba(70,80,86,.55)'; ctx.fill();
+  const ag = ctx.createLinearGradient(p.x, p.y, p.x+p.w*0.4, p.y+p.h);
+  ag.addColorStop(0,'#d9dee1'); ag.addColorStop(.45,'#c4cacd'); ag.addColorStop(1,'#aab2b6');
+  rr(p.x, p.y, p.w, p.h, 8); ctx.fillStyle = ag; ctx.fill();
+  // soft specular sweep
+  const sp = ctx.createLinearGradient(p.x, p.y, p.x+p.w, p.y+p.h*0.6);
+  sp.addColorStop(0,'rgba(255,255,255,0)'); sp.addColorStop(.35,'rgba(255,255,255,.28)'); sp.addColorStop(.5,'rgba(255,255,255,0)');
+  rr(p.x, p.y, p.w, p.h, 8); ctx.fillStyle = sp; ctx.fill();
+  // inner shadow along the top lip
+  const ish = ctx.createLinearGradient(0, p.y, 0, p.y+14);
+  ish.addColorStop(0,'rgba(40,50,55,.35)'); ish.addColorStop(1,'rgba(40,50,55,0)');
+  ctx.fillStyle = ish; ctx.fillRect(p.x, p.y, p.w, 14);
+  // heat glow grows with each stage
+  if (st.heat > 1){
+    const k = (st.heat - 1)/1.2, pulse = .7 + .3*Math.sin(t*4);
+    ctx.save(); rr(p.x, p.y, p.w, p.h, 8); ctx.clip();
+    const hg = ctx.createRadialGradient(p.x+p.w/2, p.y+p.h/2, Math.min(p.w,p.h)*0.35, p.x+p.w/2, p.y+p.h/2, Math.max(p.w,p.h)*0.7);
+    hg.addColorStop(0,'rgba(255,120,40,0)'); hg.addColorStop(1,`rgba(255,100,30,${0.42*k*pulse})`);
+    ctx.fillStyle = hg; ctx.fillRect(p.x, p.y, p.w, p.h); ctx.restore();
+  }
+}
+
+function drawStream(t){
+  if (!S || S.state !== 'dispense') return;
+  const el = t - S.t0, sh = G.sheet, nz = G.nozzle;
+  if (el < STREAM + SPREAD*0.85){
+    const endY = nz.y + (sh.y + 8 - nz.y)*Math.min(1, el/0.16), wob = Math.sin(t*40)*1;
+    const c = cookRGB(0.3, S.fl);
+    const g = ctx.createLinearGradient(nz.x-4, 0, nz.x+4, 0);
+    g.addColorStop(0, rgb(shade(c,.85))); g.addColorStop(.4, rgb(shade(c,1.08))); g.addColorStop(1, rgb(shade(c,.8)));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(nz.x-3.5, nz.y); ctx.lineTo(nz.x+3.5, nz.y); ctx.lineTo(nz.x+2.8+wob, endY); ctx.lineTo(nz.x-2.8+wob, endY); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = rgb(c); ctx.beginPath(); ctx.ellipse(nz.x+wob, endY, 9, 4, 0, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+function sheetPath(bottom){
+  const sh = G.sheet, st = S.strips, stripH = sh.h/N;
+  ctx.beginPath();
+  ctx.moveTo(sh.x + 12 + st[0].jl, sh.y);
+  ctx.lineTo(sh.x + sh.w - 12 + st[0].jr, sh.y);
+  ctx.quadraticCurveTo(sh.x + sh.w + st[0].jr, sh.y, sh.x + sh.w + st[0].jr, sh.y + 12);
+  for (let k=0;k<N;k++){ const y = sh.y + (k+1)*stripH; if (y > bottom){ ctx.lineTo(sh.x + sh.w + st[k].jr, bottom); break; } ctx.lineTo(sh.x + sh.w + st[k].jr, y); }
+  ctx.lineTo(sh.x + st[Math.min(N-1, Math.floor((bottom-sh.y)/stripH))].jl, bottom);
+  for (let k=N-1;k>=0;k--){ const y = sh.y + k*stripH; if (y >= bottom) continue; ctx.lineTo(sh.x + st[k].jl, Math.max(y, sh.y+12)); }
+  ctx.quadraticCurveTo(sh.x + st[0].jl, sh.y, sh.x + 12 + st[0].jl, sh.y);
+  ctx.closePath();
+}
+
+function drawSheet(t){
+  const sh = G.sheet, st = S.strips, fl = S.fl, stripH = sh.h/N;
+  let front = sh.y;
+  for (let k=0;k<N;k++) if (st[k].land!=null) front = sh.y + (k+1)*stripH;
+  if (S.state === 'dispense'){ const el = t - S.t0; if (el > STREAM) front = sh.y + Math.min(1,(el-STREAM)/SPREAD)*sh.h; }
+  const bottom = S.state==='done' ? sh.y : Math.min(front, rodY());
+  if (bottom <= sh.y + 1) return;
+
+  const g = ctx.createLinearGradient(0, sh.y, 0, sh.y + sh.h);
+  for (let k=0;k<N;k++) g.addColorStop((k+.5)/N, rgb(cookRGB(cookOf(st[k], t), fl)));
+  ctx.save();
+  sheetPath(bottom); ctx.shadowColor = 'rgba(90,60,20,.3)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 1; ctx.fillStyle = g; ctx.fill();
+  ctx.restore();
+  ctx.save(); sheetPath(bottom); ctx.clip();
+  // pores and crumb texture
+  ctx.save(); ctx.translate(S.off.x, S.off.y); ctx.fillStyle = porePat; ctx.globalAlpha = .9;
+  ctx.fillRect(sh.x - S.off.x, sh.y - S.off.y, sh.w, sh.h); ctx.restore();
+  // lacy browned rim: edges cook faster
+  ctx.save(); sheetPath(bottom); ctx.lineWidth = 7;
+  const eg = ctx.createLinearGradient(0, sh.y, 0, sh.y + sh.h);
+  for (let k=0;k<N;k++) eg.addColorStop((k+.5)/N, rgb(cookRGB(cookOf(st[k], t)*1.3 + .6, fl), .7));
+  ctx.strokeStyle = eg; ctx.stroke(); ctx.restore();
+  // flavour bits
+  if (fl.speck){
+    for (const b of S.bits){
+      const k = Math.min(N-1, Math.floor(b.y*N)), y = sh.y + b.y*sh.h;
+      if (y > bottom || st[k].land==null) continue;
+      const c = cookOf(st[k], t), dark = clamp(1 - (c-GOLD)/6, .25, 1);
+      ctx.fillStyle = rgb(fl.speck.map(v=>v*dark), fl.id==='collagen' ? .4 : .85);
+      ctx.save(); ctx.translate(sh.x + b.x*sh.w, y); ctx.rotate(b.a);
+      if (fl.id==='scallion') ctx.fillRect(-b.r*1.8, -b.r*.7, b.r*3.6, b.r*1.4);
+      else { ctx.beginPath(); ctx.ellipse(0,0,b.r*1.2,b.r*.8,0,0,Math.PI*2); ctx.fill(); }
+      ctx.restore();
+    }
+  }
+  // wet sheen before it sets — the only cue once the guide is gone
+  for (let k=0;k<N;k++){
+    const c = cookOf(st[k], t); if (st[k].land==null || c > SET) continue;
+    const shimmer = 0.5 + 0.5*Math.sin(t*5 + k*0.45);
+    ctx.fillStyle = `rgba(255,253,240,${(0.24 + 0.16*shimmer)*(1-c/SET)})`;
+    ctx.fillRect(sh.x, sh.y + k*stripH, sh.w, stripH+0.5);
+  }
+  // global top-light
+  const tl = ctx.createLinearGradient(sh.x, sh.y, sh.x + sh.w, sh.y);
+  tl.addColorStop(0,'rgba(255,255,255,.12)'); tl.addColorStop(.5,'rgba(255,255,255,0)'); tl.addColorStop(1,'rgba(60,30,10,.08)');
+  ctx.fillStyle = tl; ctx.fillRect(sh.x - 10, sh.y, sh.w + 20, sh.h);
+  ctx.restore();
+}
+
+// a rolled egg roll seen from above, one cut end showing its spiral
+function drawCylinder(x, y, w, R, col, opts = {}){
+  const {rot = 0, fl = null, end = true} = opts;
+  ctx.save();
+  rr(x, y-R, w, R*2, R);
+  const g = ctx.createLinearGradient(0, y-R, 0, y+R);
+  g.addColorStop(0, rgb(shade(col,.78))); g.addColorStop(.18, rgb(shade(col,1.12))); g.addColorStop(.32, rgb(shade(col,1.22)));
+  g.addColorStop(.55, rgb(col)); g.addColorStop(.85, rgb(shade(col,.7))); g.addColorStop(1, rgb(shade(col,.55)));
+  ctx.save(); ctx.shadowColor = 'rgba(70,45,20,.32)'; ctx.shadowBlur = Math.max(4, R*0.6); ctx.shadowOffsetY = R*0.45;
+  ctx.fillStyle = g; ctx.fill(); ctx.restore();
+  ctx.save(); ctx.clip();
+  ctx.globalAlpha = .7; ctx.fillStyle = porePat; ctx.fillRect(x, y-R, w, R*2); ctx.globalAlpha = 1;
+  // seam lines wrapping the roll
+  ctx.lineWidth = 1;
+  for (let i=0;i<6;i++){
+    const a = rot + i*(Math.PI*2/6), c = Math.cos(a); if (c < 0.1) continue;
+    ctx.strokeStyle = `rgba(90,48,14,${0.22*c})`;
+    const yy = y + Math.sin(a)*R*0.9;
+    ctx.beginPath(); ctx.moveTo(x, yy + 1.5); ctx.lineTo(x+w, yy - 1.5); ctx.stroke();
+  }
+  if (fl && fl.speck){
+    ctx.fillStyle = rgb(fl.speck, fl.id==='collagen' ? .35 : .7);
+    for (let i=0;i<Math.floor(w/9);i++){ const px = x + ((i*53.7)%w), py = y + Math.sin(i*2.3)*R*0.7; ctx.fillRect(px, py, fl.id==='scallion'?3:1.6, 1.6); }
+  }
+  ctx.restore();
+  // cut end with spiral
+  if (end && R > 4){
+    const ex = x + R*0.42;
+    ctx.fillStyle = rgb(shade(col,.62)); ctx.beginPath(); ctx.ellipse(ex, y, R*0.42, R*0.96, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(40,25,12,.75)'; ctx.beginPath(); ctx.ellipse(ex, y, R*0.12, R*0.26, 0, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = rgb(shade(col,1.15), .9); ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let a=0; a<Math.PI*6; a+=0.2){ const r = .26 + (a/(Math.PI*6))*.68; ctx.lineTo(ex + Math.cos(a+rot)*R*0.42*r, y + Math.sin(a+rot)*R*0.96*r); }
+    ctx.stroke();
+  }
+  // specular streak
+  ctx.fillStyle = 'rgba(255,255,255,.28)'; rr(x + R, y - R*0.62, w - R*2, R*0.22, R*0.11); ctx.fill();
+  ctx.restore();
+}
+
+function drawRod(t){
+  const sh = G.sheet, p = G.plate;
+  let y = rodY();
+  if (S.state === 'dispense' && S.rodFrom!=null){
+    const k = clamp((t - S.t0)/0.45, 0, 1), e = 1 - (1-k)**3;
+    y = S.rodFrom + (rodY() - S.rodFrom)*e;
+  }
+  if (S.state === 'done') y = S.rodYEnd;
+  const rodR = 4.5;
+  if (S.state !== 'done' || t - S.doneT > 0.12){
+    const g = ctx.createLinearGradient(0, y-rodR, 0, y+rodR);
+    g.addColorStop(0,'#8f9a9f'); g.addColorStop(.25,'#ffffff'); g.addColorStop(.55,'#b9c2c6'); g.addColorStop(1,'#59646a');
+    ctx.save(); ctx.shadowColor = 'rgba(30,40,45,.35)'; ctx.shadowBlur = 5; ctx.shadowOffsetY = 4;
+    ctx.fillStyle = g; rr(p.x-6, y-rodR, p.w+12, rodR*2, rodR); ctx.fill(); ctx.restore();
+  }
+  if (!(S.p > 0 && S.state==='rolling')) return;
+  const R = rodR + 2 + 10*Math.sqrt(S.p);
+  const acc=[0,0,0]; let n=0;
+  for (const s of S.strips) if (s.rolled!=null){ const c = cookRGB(cookOf(s,t), S.fl); acc[0]+=c[0];acc[1]+=c[1];acc[2]+=c[2]; n++; }
+  const col = n ? acc.map(v=>v/n) : cookRGB(1, S.fl);
+  drawCylinder(sh.x - 2, y, sh.w + 4, R, col, {rot: S.p*sh.h / R, fl: S.fl});
+}
+
+// finished rolls fly from the plate to the wire rack
+function rackSlot(i){
+  const r = G.rack, R = 7.5, rowH = R*2 + 3, perRow = 1, rows = Math.max(1, Math.floor((r.h - 18) / rowH));
+  const shown = Math.max(0, run.rack.length - rows);
+  const j = i - shown, row = rows - 1 - j;
+  const w = Math.min(r.w - 40, G.sheet.w * 0.8);
+  return {x: r.x + (r.w - w)/2 + (j%2 ? 8 : -8), y: r.y + 10 + R + row*rowH, w, R, visible: j >= 0};
+}
+function drawRack(t){
+  const r = G.rack;
+  ctx.save(); ctx.shadowColor = 'rgba(40,50,55,.25)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 6;
+  rr(r.x, r.y, r.w, r.h, 12); ctx.fillStyle = steelFill(r.x, r.y, r.x, r.y+r.h, .97); ctx.fill(); ctx.restore();
+  rr(r.x, r.y, r.w, r.h, 12); overlayBrush();
+  ctx.strokeStyle = 'rgba(90,100,106,.4)'; ctx.lineWidth = 1; rr(r.x+.5, r.y+.5, r.w-1, r.h-1, 12); ctx.stroke();
+  // wire grid
+  ctx.save(); rr(r.x+6, r.y+6, r.w-12, r.h-12, 8); ctx.clip();
+  ctx.fillStyle = 'rgba(70,80,86,.18)'; ctx.fillRect(r.x, r.y, r.w, r.h);
+  for (let x = r.x + 10; x < r.x + r.w; x += 9){
+    ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(x, r.y); ctx.lineTo(x, r.y + r.h); ctx.stroke();
+    ctx.strokeStyle = 'rgba(80,90,96,.35)'; ctx.lineWidth = .8; ctx.beginPath(); ctx.moveTo(x+1.2, r.y); ctx.lineTo(x+1.2, r.y + r.h); ctx.stroke();
+  }
+  ctx.restore();
+  if (!run) return;
+  const flying = new Set(flyers.map(f => f.idx));
+  run.rack.forEach((it, i) => {
+    if (flying.has(i)) return;
+    const s = rackSlot(i); if (!s.visible) return;
+    drawCylinder(s.x, s.y, s.w, s.R, it.c, {fl: FL[it.fl], rot: i*1.7});
+  });
+}
+function drawFlyers(t){
+  const sh = G.sheet;
+  flyers = flyers.filter(f => t - f.t0 < 0.7);
+  for (const f of flyers){
+    const k = clamp((t - f.t0)/0.7, 0, 1), e = k<.5 ? 2*k*k : 1 - (-2*k+2)**2/2;
+    const s = rackSlot(f.idx);
+    const x = (sh.x - 2) + (s.x - (sh.x-2))*e, y = f.y + (s.y - f.y)*e - Math.sin(k*Math.PI)*40;
+    const w = (sh.w + 4) + (s.w - (sh.w+4))*e, R = 16.5 + (s.R - 16.5)*e;
+    drawCylinder(x, y, w, R, f.c, {fl: f.fl, rot: k*6});
+  }
+}
+
+function drawParticles(){
+  for (const q of particles){
+    const a = 1 - q.life/q.max, r = q.r0 + q.life*8;
+    const g = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, r);
+    if (q.dark){ g.addColorStop(0, `rgba(70,62,58,${0.4*a})`); g.addColorStop(1,'rgba(70,62,58,0)'); }
+    else { g.addColorStop(0, `rgba(255,255,255,${0.28*a})`); g.addColorStop(1,'rgba(255,255,255,0)'); }
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(q.x, q.y, r, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+function drawHint(t){
+  if (mode !== 'play') return;
+  const sh = G.sheet, cx = sh.x + sh.w/2, cy = sh.y + sh.h*0.5;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const label = (txt, y, size=17, bg='31,42,46', a=.9) => {
+    ctx.font = `700 ${size}px ${FONT_D}`;
+    const w = Math.min(sh.w - 8, ctx.measureText(txt).width + 28);
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.2)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
+    ctx.fillStyle = `rgba(${bg},${a})`; rr(cx - w/2, y - size*0.9, w, size*1.8, size*0.9); ctx.fill(); ctx.restore();
+    ctx.fillStyle = '#fff'; ctx.fillText(txt, cx, y);
+  };
+  const arrow = () => {
+    const bob = reduce ? 0 : Math.sin(t*5)*6, ay = sh.y + sh.h*0.76 + bob;
+    ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 6;
+    ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(cx, ay+28); ctx.lineTo(cx, ay-22); ctx.moveTo(cx-14, ay-8); ctx.lineTo(cx, ay-22); ctx.lineTo(cx+14, ay-8); ctx.stroke(); ctx.restore();
+  };
+  if (S.stageUp && S.state === 'dispense') label('火力升級！焦得更快', cy, 17, '196,48,38', .92);
+  else if (S.guided){
+    if (S.state === 'setting'){
+      const k = clamp((t - S.setT)*S.heat/SET, 0, 1), shake = S.nudge && t - S.nudge < .3 ? Math.sin(t*60)*3 : 0;
+      ctx.save(); ctx.translate(shake, 0); label('麵糊定型中', cy);
+      ctx.fillStyle = 'rgba(31,42,46,.25)'; rr(cx-40, cy+22, 80, 5, 2.5); ctx.fill();
+      ctx.fillStyle = '#fff'; rr(cx-40, cy+22, 80*k, 5, 2.5); ctx.fill(); ctx.restore();
+    } else if (S.state === 'ready' && maxCook(t) <= GOLD){ arrow(); label('向上推，開始捲', cy - 14); }
+  }
+  if (S.state === 'ready' && maxCook(t) > GOLD){ arrow(); label('快推！要焦了', cy - 14, 17, '196,48,38', .92); }
+  else if (S.state === 'rolling' && !S.touching) label('繼續往上推', Math.min(cy, rodY() - 44), 15);
+}
+
+let last = performance.now()/1000;
+function frame(){
+  const now = performance.now()/1000, dt = Math.min(0.05, now - last); last = now;
+  if (!W) resize();
+  if (W){
+    if (mode === 'play' && S){ clock += dt; update(clock, dt); }
+    const t = clock;
+    drawBackdrop(); drawMachine(t); drawRack(t);
+    if (S){ drawSheet(t); drawStream(t); drawParticles(); drawRod(t); drawFlyers(t); drawHint(t); }
+  }
+  requestAnimationFrame(frame);
+}
+
+// ---------- collection book ----------
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function rollThumb(fl, locked, w=300, h=90){
+  const c = document.createElement('canvas'), dpr = Math.min(2, devicePixelRatio||1);
+  c.width = w*dpr; c.height = h*dpr; c.style.aspectRatio = `${w} / ${h}`;
+  const x = c.getContext('2d'); x.setTransform(dpr,0,0,dpr,0,0);
+  // reuse the scene's cylinder painter on this canvas
+  const prevCtx = ctx, prevPat = porePat;
+  ctx = x; porePat = x.createPattern(poreTex, 'repeat');
+  try {
+    const col = locked ? [214,220,223] : cookRGB(3.4, fl);
+    drawCylinder(w*0.1, h*0.36, w*0.78, h*0.16, col, {fl: locked ? null : fl, rot: .4});
+    drawCylinder(w*0.04, h*0.68, w*0.82, h*0.16, shade(col,.97), {fl: locked ? null : fl, rot: 2.1});
+  } finally { ctx = prevCtx; porePat = prevPat; }
+  return c;
+}
+function openBook(){ pause(); $('book').hidden = false; renderGrid(); }
+function closeBook(){ $('book').hidden = true; }
+function renderGrid(){
+  $('bookBack').innerHTML = icon('x'); $('bookBack').onclick = closeBook;
+  const body = $('bookBody'); body.innerHTML = '<div class="grid"></div>';
+  const grid = body.firstChild;
+  for (const fl of FLAVORS){
+    const got = life.col[fl.id];
+    const el = document.createElement(got ? 'button' : 'div');
+    el.className = 'card' + (got ? '' : ' locked');
+    if (got){ el.type = 'button'; el.onclick = () => renderDetail(fl.id); }
+    el.appendChild(rollThumb(fl, !got));
+    const hint = fl.id!=='original' && life.count < FLAVOR_AFTER ? `捲滿 ${FLAVOR_AFTER} 支後，給料機會出現新口味` : `捲出一支 ${COLLECT_SCORE} 分以上即可收錄`;
+    el.insertAdjacentHTML('beforeend', got ? `<span class="nm">${esc(fl.name)}</span><span class="en">${esc(fl.en)}</span>` : `<span class="nm">？？？</span><span class="lockhint">${hint}</span>`);
+    grid.appendChild(el);
+  }
+  body.scrollTop = 0;
+}
+function renderDetail(id){
+  const fl = FL[id], rec = life.col[id] || {n:0,best:0}, nut = NUTRITION[id];
+  $('bookBack').innerHTML = icon('back'); $('bookBack').onclick = renderGrid;
+  const v = (k, i) => nut && nut.rows && nut.rows[k] ? esc(nut.rows[k][i]) : '—';
+  const rows = NUT_ROWS.map(([k,label,unit,sub]) => `<tr class="${sub?'sub':''}"><th scope="row">${label}</th><td>${v(k,0)} ${unit}</td><td>${v(k,1)} ${unit}</td></tr>`).join('');
+  $('bookBody').innerHTML = `<article class="detail">
+    <div id="heroSlot"></div>
+    <h2>${esc(fl.name)}</h2><div class="en">${esc(fl.en)}</div>
+    <p class="tag">${esc(fl.tag)}</p>
+    <div class="chips">${[fl.pcs, fl.price, fl.veg ? '素食可' : null].filter(x=>x && x!=='—').map(x=>`<span class="chip">${esc(x)}</span>`).join('')}</div>
+    ${fl.points.length ? `<div class="sec">產品特色</div><ul>${fl.points.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>` : ''}
+    <div class="sec">營養標示</div>
+    <div class="tblwrap"><table class="nut">
+      <caption>營養標示</caption>
+      <tbody><tr><th scope="row">每一份量</th><td colspan="2">${nut ? esc(nut.serving) : '—'}</td></tr>
+      <tr><th scope="row">本包裝含</th><td colspan="2">${nut ? esc(nut.servings) : '—'}</td></tr>
+      <tr class="hd"><th></th><th scope="col">每份</th><th scope="col">每 100 公克</th></tr>
+      ${rows}</tbody>
+    </table></div>
+    <div class="foot">${nut ? '' : '官網尚未公布營養標示，數值待補。<br>'}${fl.url ? `資料來源：<a href="${fl.url}" target="_blank" rel="noopener">捲幸福蛋捲官網</a>` : '官網目前沒有這個品項。'}</div>
+    <div class="mine"><span>收錄<b>${rec.n}</b></span><span>最佳<b>${rec.best}</b></span></div>
+  </article>`;
+  const hero = rollThumb(fl, false, 400, 110); hero.className = 'hero'; $('heroSlot').replaceWith(hero);
+  $('bookBody').scrollTop = 0;
+}
+$('bookBtn').addEventListener('click', openBook);
+
+// ---------- boot ----------
+function start(){
+  try { const s = JSON.parse(localStorage.getItem('eggroll-v4') || 'null'); if (s && typeof s.count==='number') life = Object.assign(life, s); } catch(e){}
+  life.col = life.col || {};
+  resize(); renderHud(); renderStars(0);
+  showTitle();
+  subscribeBoard();
+  requestAnimationFrame(frame);
+}
+(document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(start, start);
+})();
+</script>
+</body>
+</html>
