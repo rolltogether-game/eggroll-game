@@ -173,6 +173,8 @@ body{margin:0}
   <symbol id="ic-pause" viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></symbol>
   <symbol id="ic-play" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></symbol>
   <symbol id="ic-again" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4"/></symbol>
+  <symbol id="ic-snd" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4zM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></symbol>
+  <symbol id="ic-mute" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4zM16 9.5l5 5M21 9.5l-5 5"/></symbol>
 </svg>
 
 <main id="stage"><canvas id="cv"></canvas></main>
@@ -181,6 +183,7 @@ body{margin:0}
   <span class="timer" id="timer" aria-label="time left">1:00</span>
   <span class="total" aria-label="total score"><svg class="i"><use href="#ic-sum"/></svg><b id="sTotal">0</b></span>
   <span class="sp"></span>
+  <button class="ibtn" id="sndBtn" type="button" aria-label="mute"></button>
   <button class="ibtn" id="bookBtn" type="button" aria-label="collection"><svg class="i"><use href="#ic-book"/></svg></button>
   <button class="ibtn" id="pauseBtn" type="button" aria-label="pause"><svg class="i"><use href="#ic-pause"/></svg></button>
 </header>
@@ -363,6 +366,7 @@ function newBatter(t){
     off: {x:Math.random()*160, y:Math.random()*160},
     touching:false, lastY:null, rodFrom: prevRod, rodYEnd:null, doneT:null,
   };
+  sfxDispense(S.stageUp);
 }
 const cookOf = (s, t) => s.land==null ? 0 : ((s.rolled ?? t) - s.land) * S.heat;
 function maxCook(t){ let m=0; for (const s of S.strips) m = Math.max(m, cookOf(s,t)); return m; }
@@ -416,6 +420,7 @@ function finish(t, charred){
   else if (even < fireScore) note = '速度忽快忽慢，厚薄不一。';
   else note = '火候稍過，可以早一點推。';
 
+  sfxFinish(score, burnt);
   renderStars(score);
   $('score').textContent = score;
   $('vEven').textContent = charred ? '–' : Math.round(even);
@@ -433,7 +438,7 @@ function finish(t, charred){
   life.count++;
   const id = S.fl.id, rec = life.col[id];
   if (score >= COLLECT_SCORE){
-    if (!rec){ life.col[id] = {n:1, best:score}; run.unlocked.push(id); flashBook(); }
+    if (!rec){ life.col[id] = {n:1, best:score}; run.unlocked.push(id); flashBook(); sfxUnlock(); }
     else { rec.n++; rec.best = Math.max(rec.best, score); }
   }
   renderHud(); save();
@@ -470,7 +475,7 @@ function endRound(){
   mode = 'over'; if (S) S.touching = false;
   const isBest = run.total > 0 && run.total > (life.bestTotal || 0);
   if (isBest) life.bestTotal = run.total;
-  save(); renderHud(); showOver(isBest);
+  save(); renderHud(); showOver(isBest); sfxEnd();
   logPlay(run.total, run.rolls);
 }
 const icon = id => `<svg class="i"><use href="#ic-${id}"/></svg>`;
@@ -608,13 +613,171 @@ function mountBoard(el, total, rolls){
   });
 }
 $('pauseBtn').addEventListener('click', () => mode==='play' ? pause() : mode==='paused' ? resume() : null);
-document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden){ pause(); if (snd.ctx) snd.ctx.suspend(); } });
+
+// ---------- sound ----------
+// everything is synthesized with Web Audio, no sound files to load
+const AC = window.AudioContext || window.webkitAudioContext;
+const snd = {on:true, ctx:null, next:0, step:0, lastP:0, burnt:false};
+try { snd.on = localStorage.getItem('eggroll-sound') !== 'off'; } catch(e){}
+const midi = m => 440 * Math.pow(2, (m-69)/12);
+function audioInit(){
+  if (!AC) return;
+  if (!snd.ctx){
+    const a = snd.ctx = new AC();
+    snd.master = a.createGain(); snd.master.gain.value = snd.on ? 1 : 0; snd.master.connect(a.destination);
+    snd.sfx = a.createGain(); snd.sfx.gain.value = .9; snd.sfx.connect(snd.master);
+    snd.mus = a.createGain(); snd.mus.gain.value = 0; snd.mus.connect(snd.master);
+    const len = a.sampleRate * 2;
+    snd.noise = a.createBuffer(1, len, a.sampleRate);
+    snd.brown = a.createBuffer(1, len, a.sampleRate);
+    const w = snd.noise.getChannelData(0), b = snd.brown.getChannelData(0);
+    let l = 0;
+    for (let i=0;i<len;i++){ w[i] = Math.random()*2-1; l = (l + .02*w[i]) / 1.02; b[i] = l*3.5; }
+    snd.sizzle = loopNoise(snd.noise, 'bandpass', 4200, .7);  // batter on the hot plate
+    snd.scorch = loopNoise(snd.noise, 'bandpass', 900, 1.2);  // rougher hiss once it starts burning
+    snd.roll   = loopNoise(snd.brown, 'lowpass', 300, .8);    // steel rod rumbling over the plate
+    snd.rub    = loopNoise(snd.noise, 'bandpass', 1400, .9);  // sheet wrapping around the rod
+  }
+  if (snd.ctx.state !== 'running') snd.ctx.resume();
+}
+['pointerdown','touchend','keydown'].forEach(ev => addEventListener(ev, audioInit, {capture:true, passive:true}));
+function loopNoise(buf, type, f, q){
+  const a = snd.ctx, src = a.createBufferSource(), fl = a.createBiquadFilter(), g = a.createGain();
+  src.buffer = buf; src.loop = true;
+  fl.type = type; fl.frequency.value = f; fl.Q.value = q; g.gain.value = 0;
+  src.connect(fl); fl.connect(g); g.connect(snd.sfx);
+  src.start(0, Math.random()*1.5);
+  return {f:fl, g};
+}
+const live = () => snd.ctx && snd.on && snd.ctx.state === 'running';
+const glide = (param, v, k=.06) => param.setTargetAtTime(v, snd.ctx.currentTime, k);
+function tone(freq, dur, o={}){
+  const a = snd.ctx, t = a.currentTime + (o.at||0), osc = a.createOscillator(), g = a.createGain();
+  osc.type = o.type || 'sine';
+  osc.frequency.setValueAtTime(freq, t);
+  if (o.slide) osc.frequency.exponentialRampToValueAtTime(Math.max(20, freq*o.slide), t+dur);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(o.vol ?? .2, t + (o.attack ?? .005));
+  g.gain.exponentialRampToValueAtTime(.0001, t+dur);
+  osc.connect(g); g.connect(o.bus || snd.sfx);
+  osc.start(t); osc.stop(t+dur+.05);
+}
+function burst(dur, o={}){
+  const a = snd.ctx, t = a.currentTime + (o.at||0), src = a.createBufferSource(), fl = a.createBiquadFilter(), g = a.createGain();
+  src.buffer = o.buf || snd.noise;
+  fl.type = o.type || 'bandpass'; fl.Q.value = o.q ?? 1;
+  fl.frequency.setValueAtTime(o.f || 1000, t);
+  if (o.f2) fl.frequency.exponentialRampToValueAtTime(o.f2, t+dur);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(o.vol ?? .2, t + (o.attack ?? .005));
+  g.gain.exponentialRampToValueAtTime(.0001, t+dur);
+  src.connect(fl); fl.connect(g); g.connect(o.bus || snd.sfx);
+  src.start(t, Math.random()*1.5); src.stop(t+dur+.05);
+}
+function sfxDispense(stageUp){
+  snd.burnt = false; snd.lastP = 0;
+  if (!live()) return;
+  if (stageUp){  // flame turned up
+    burst(.7, {type:'lowpass', f:180, f2:1600, q:.8, vol:.4, attack:.08});
+    tone(392, .18, {type:'triangle', vol:.12});
+    tone(523, .3, {type:'triangle', vol:.12, at:.12});
+  }
+  burst(.04, {type:'highpass', f:2500, vol:.18});                         // pump valve click
+  tone(170, .07, {type:'square', vol:.05, slide:.7});
+  burst(STREAM+.25, {type:'lowpass', f:900, f2:260, q:5, vol:.22, at:.04, attack:.06}); // batter squeezing out
+  tone(150, .4, {vol:.12, slide:.55, at:.05, attack:.05});
+  tone(330, .16, {vol:.22, slide:.45, at:STREAM});                         // plop onto the plate
+  burst(.6, {f:5200, q:.6, vol:.16, at:STREAM, attack:.02});               // first hiss
+}
+function sfxFinish(score, burnt){
+  if (!live()) return;
+  tone(210, .09, {vol:.2, slide:.5});  // roll comes off the plate
+  if (burnt){
+    tone(120, .45, {type:'sawtooth', vol:.08, slide:.7, at:.06});
+    burst(.35, {type:'lowpass', f:700, f2:200, vol:.2, at:.06});
+    return;
+  }
+  const notes = score >= 90 ? [84,88,91,96] : score >= 70 ? [84,88,91] : score >= 50 ? [84,88] : [79];
+  notes.forEach((m,i) => tone(midi(m), .35, {type:'triangle', vol:.13, at:.08 + i*.07}));
+}
+function sfxUnlock(){
+  if (!live()) return;
+  [91,96,100,103,108].forEach((m,i) => { tone(midi(m), .5, {type:'sine', vol:.1, at:.45 + i*.06}); tone(midi(m)*2.01, .3, {type:'sine', vol:.03, at:.45 + i*.06}); });
+}
+function sfxTick(sec){
+  if (!live()) return;
+  tone(sec <= 3 ? 1320 : 990, .06, {type:'square', vol: sec <= 3 ? .07 : .04});
+}
+function sfxEnd(){
+  if (!live()) return;
+  [72,76,79,84].forEach((m,i) => tone(midi(m), i === 3 ? 1.1 : .3, {type:'triangle', vol:.15, at:i*.12}));
+}
+// background music: a light loop in F major, picks up tempo as the heat rises
+const CHORDS = [[65,69,72],[62,65,69],[58,62,65],[60,64,67]];
+const BASS = [53,50,46,48];
+const MELODY = [
+  [81,null,84,81,79,null,77,null],[77,null,79,81,null,86,84,null],[86,null,84,81,79,null,81,null],[79,null,77,79,81,null,null,null],
+  [81,null,84,86,84,null,81,null],[77,null,79,81,null,84,81,null],[86,null,84,81,79,null,77,79],[84,null,81,null,77,null,null,null],
+];
+function musicStep(at, i, spb){
+  const bar = Math.floor(i/8) % 8, s = i % 8, ch = bar % 4, o = {bus:snd.mus, at};
+  if (s === 0 || s === 4) tone(midi(BASS[ch] + (s ? 7 : 0)), spb*1.8, {...o, type:'triangle', vol:.16, attack:.01});
+  if (s % 2) CHORDS[ch].forEach(m => tone(midi(m), spb*.9, {...o, type:'sine', vol:.035}));
+  const m = MELODY[bar][s];
+  if (m) tone(midi(m), spb*1.6, {...o, type:'triangle', vol:.07, attack:.01});
+  burst(.035, {...o, type:'highpass', f:7000, vol: s % 2 ? .035 : .018});
+}
+function soundTick(dt){
+  if (!snd.ctx || snd.ctx.state !== 'running') return;
+  const a = snd.ctx, playing = mode === 'play' && S && snd.on;
+  glide(snd.mus.gain, playing ? .55 : 0, playing ? .3 : .15);
+  if (playing){
+    const spb = 60 / (100 + 8*STAGES.indexOf(stageOf(run.rolls))) / 2;  // seconds per eighth note
+    if (snd.next < a.currentTime) snd.next = a.currentTime + .05;
+    while (snd.next < a.currentTime + .2){ musicStep(snd.next - a.currentTime, snd.step++, spb); snd.next += spb; }
+  }
+  let cooking = 0, mc = 0;
+  if (playing && S.state !== 'done'){
+    const t = clock;
+    for (const s of S.strips) if (s.land != null && s.rolled == null) cooking++;
+    mc = maxCook(t);
+  }
+  const amt = cooking / N;
+  glide(snd.sizzle.g.gain, amt * (.08 + .04*(S ? S.heat : 1)));
+  glide(snd.sizzle.f.frequency, 3600 + Math.min(mc, CHAR)*260, .2);
+  const scorch = mc > GOLD ? Math.min(1, (mc-GOLD)/(CHAR-GOLD)) : 0;
+  glide(snd.scorch.g.gain, amt * scorch * .22, .15);
+  // crackles get denser as the oldest strip passes golden toward burnt
+  if (amt && mc > GOLD*.6){
+    const rate = mc < GOLD ? 1.5 : 1.5 + (mc-GOLD)*5;
+    if (Math.random() < rate*dt) burst(.012 + Math.random()*.03, {f:1200 + Math.random()*3500, q:2, vol:.05 + scorch*.2});
+  }
+  if (playing && mc > BURN && !snd.burnt){ snd.burnt = true; burst(.6, {f:1100, q:.6, vol:.25, attack:.03}); }
+  const rolling = playing && S.state === 'rolling' && S.touching, v = rolling ? Math.max(0, S.v) : 0;
+  glide(snd.roll.g.gain, Math.min(.6, v*.55), .04);
+  glide(snd.roll.f.frequency, 180 + v*700, .05);
+  glide(snd.rub.g.gain, Math.min(.12, v*.1), .04);
+  // a soft crisp tick every bit of travel, so the rhythm follows the push speed
+  if (playing && S.p - snd.lastP > .055){ snd.lastP = S.p; burst(.025, {f:2600, q:3, vol:.05}); tone(260 + S.p*120, .03, {vol:.03}); }
+}
+function renderSnd(){
+  $('sndBtn').innerHTML = `<svg class="i"><use href="#ic-${snd.on ? 'snd' : 'mute'}"/></svg>`;
+  $('sndBtn').setAttribute('aria-pressed', String(!snd.on));
+}
+$('sndBtn').addEventListener('click', () => {
+  snd.on = !snd.on; renderSnd();
+  try { localStorage.setItem('eggroll-sound', snd.on ? 'on' : 'off'); } catch(e){}
+  audioInit();
+  if (snd.master) glide(snd.master.gain, snd.on ? 1 : 0, .05);
+});
+renderSnd();
 
 // ---------- update ----------
 function update(t, dt){
   run.left -= dt;
   if (run.left <= 0){ run.left = 0; endRound(); return; }
-  if (Math.ceil(run.left) !== Math.ceil(run.left + dt)) renderHud();
+  if (Math.ceil(run.left) !== Math.ceil(run.left + dt)){ renderHud(); if (run.left <= 10) sfxTick(Math.ceil(run.left)); }
 
   const sh = G.sheet;
   if (S.state === 'dispense'){
@@ -968,6 +1131,7 @@ function frame(){
   if (!W) resize();
   if (W){
     if (mode === 'play' && S){ clock += dt; update(clock, dt); }
+    soundTick(dt);
     const t = clock;
     drawBackdrop(); drawMachine(t); drawRack(t);
     if (S){ drawSheet(t); drawStream(t); drawParticles(); drawRod(t); drawFlyers(t); drawHint(t); }
